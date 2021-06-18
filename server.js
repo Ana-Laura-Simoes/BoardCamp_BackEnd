@@ -277,6 +277,73 @@ app.put("/customers/:id", async (req,res) =>{
 
 app.get("/rentals", async (req,res) =>{
 
+    const { customerId, gameId } = req.query;
+    let queryString = "";
+    let queryArguments = [];
+    let id = "";
+    
+    
+
+  
+        if(customerId&&gameId){
+            console.log(customerId +" " + gameId);
+            const userSchema = joi.object({
+                customerId: joi.number(),
+                gameId: joi.number()
+            });
+            const { error, value } = userSchema.validate({
+             customerId:customerId,
+             gameId:gameId
+            });
+            if(error){
+                console.log(error);
+                res.sendStatus(400);   
+                return;    
+        }
+            queryString = `WHERE rentals."gameId" = $1 AND rentals."customerId" = $2`;
+            queryArguments = [gameId, customerId];    
+        }
+        
+        
+        else if(customerId&&!gameId){
+            id=customerId;
+            console.log(id);
+            const userSchema = joi.object({
+                id: joi.number()
+              
+            });
+            const { error, value } = userSchema.validate({         
+                id:id
+            });
+            
+            if(error){
+                console.log(error);
+                res.sendStatus(400);   
+                return;    
+        }
+            queryString = `WHERE rentals."customerId" = $1`;
+            queryArguments = [customerId];
+        }
+        else if(gameId&&!customerId){
+            id=gameId; 
+            console.log(id);  
+            const userSchema = joi.object({
+                id: joi.number()
+              
+            });
+            const { error, value } = userSchema.validate({         
+                id:id
+            });
+            
+            if(error){
+                console.log(error);
+                res.sendStatus(400);   
+                return;    
+        }
+            queryString = `WHERE rentals."gameId" = $1`;
+            queryArguments = [gameId];            
+        }
+
     try{
         const rentals= await connection.query(`
         SELECT rentals.* ,customers.name AS "customerName", 
@@ -286,8 +353,8 @@ app.get("/rentals", async (req,res) =>{
         JOIN customers ON customers.id = rentals."customerId" 
         JOIN games ON rentals."gameId" = games.id 
         JOIN categories ON games."categoryId" = categories.id 
-        
-        `);
+        ${queryString} 
+        `,queryArguments);
 
         const rentalsInfo = rentals.rows.map((i) => {
             return {
