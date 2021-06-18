@@ -25,16 +25,17 @@ app.get("/categories", async (req,res) => {
         const categories = await connection.query('SELECT * FROM categories');
         res.send(categories.rows);
     }catch{
-        res.sendStatus(400);
+        res.sendStatus(500);
     };
 });
 
 
 app.post("/categories", async (req,res) => {
+
     const { name } = req.body;
    
     const userSchema = joi.object({
-        name: joi.string().min(1).required().pattern(/[a-zA-Z]/),
+        name: joi.string().min(1).required().pattern(/[a-zA-Z]/)
     });
     const { error, value } = userSchema.validate({name: name});
     if(error){
@@ -43,21 +44,18 @@ app.post("/categories", async (req,res) => {
     }
 
     try{
-    const validation = await connection.query('SELECT * FROM categories WHERE name = $1',[name]);
-
+    const CategoryName=name[0].toUpperCase()+name.substr(1);
+    const validation = await connection.query('SELECT * FROM categories WHERE name = $1',[CategoryName]);
     if(validation.rows.length!==0){
-        res.sendStatus(409);
-        return;
+        return res.sendStatus(409);
     }
-
     else{
-        const NewCategorie = await connection.query('INSERT INTO categories (name) VALUES ($1)',[name]); 
+        await connection.query('INSERT INTO categories (name) VALUES ($1)',[CategoryName]); 
         res.sendStatus(201);
     }
-
     }
     catch{
-    res.sendStatus(400);
+    res.sendStatus(500);
     }
 });
 //---------------------------------------------------------------------------------------------------------------
@@ -510,7 +508,7 @@ res.sendStatus(400);
 
 app.delete("/rentals/:id", async (req,res) =>{
     const {id}=req.params;    
-    console.log(id);
+
     const userSchema = joi.object({
         id: joi.string().required().alphanum()
     });
@@ -531,11 +529,9 @@ app.delete("/rentals/:id", async (req,res) =>{
         await connection.query("DELETE FROM rentals WHERE id=$1", [id]);
         return res.sendStatus(200);
     }
-    catch(e){
-        //console.log(e);
+    catch(e){       
         return res.sendStatus(500);
     }
-
 });
 
 
