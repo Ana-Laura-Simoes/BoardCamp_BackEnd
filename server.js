@@ -29,7 +29,6 @@ app.get("/categories", async (req,res) => {
     };
 });
 
-
 app.post("/categories", async (req,res) => {
 
     const { name } = req.body;
@@ -65,7 +64,6 @@ app.post("/categories", async (req,res) => {
 
 app.get("/games", async (req,res)=>{
     const {name}=req.query;
-    console.log(name);
     let FilteredGames="";
 
     name?FilteredGames= name[0].toUpperCase()+name.substr(1):"";
@@ -79,20 +77,14 @@ app.get("/games", async (req,res)=>{
         ON games."categoryId" = categories.id
         WHERE games.name 
         LIKE $1`, [querySettings]);                
-        //console.log(games.rows);
-		if (games.rows.length===0)
-        {
-            res.sendStatus(204);
-            return;
-        }
-        else
-        res.send(games.rows);  
+
+		if (games.rows.length===0) return res.sendStatus(404);
+        else return res.send(games.rows);  
         
     }
     catch{
-        res.sendStatus(400);
+        res.sendStatus(500);
     };
-
 });
 
 
@@ -104,8 +96,8 @@ app.post("/games", async (req,res)=>{
         stockTotal: joi.number().min(1).required(),
         pricePerDay:joi.number().min(1).required(),
         categoryId: joi.number().min(1).required(),
-
     });
+
     const { error, value } = userSchema.validate({
         name: name, 
         stockTotal: stockTotal, 
@@ -114,14 +106,12 @@ app.post("/games", async (req,res)=>{
     });
 
     if(error){
-        res.sendStatus(400);
-        return;
+        return res.sendStatus(400);
     }
 
-
-
     try{
-        const Namevalidation = await connection.query('SELECT * FROM games WHERE name = $1',[name]);
+        const GameName=name[0].toUpperCase()+name.substr(1);        
+        const Namevalidation = await connection.query('SELECT * FROM games WHERE name = $1',[GameName]);
         if(Namevalidation.rows.length!==0){
             res.sendStatus(409);
             return;
@@ -132,13 +122,13 @@ app.post("/games", async (req,res)=>{
             res.sendStatus(400);
             return;
         }
-        const GameName=name[0].toUpperCase()+name.substr(1);
+       
         await connection.query('INSERT INTO games (name, image, "stockTotal", "categoryId", "pricePerDay") VALUES ($1, $2, $3, $4, $5)',[GameName, image, stockTotal, categoryId, pricePerDay]);
         res.sendStatus(201);
 
     }
     catch{
-        res.sendStatus(400);
+        res.sendStatus(500);
     }
     
 });
