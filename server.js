@@ -217,9 +217,9 @@ try{
         return;
     }
     
-    const CostumerName=name[0].toUpperCase()+ name.substr(1);
+    const CustomerName=name[0].toUpperCase()+ name.substr(1);
     console.log(birthday);
-    await connection.query('INSERT INTO customers (name, phone, cpf, birthday) VALUES ($1, $2, $3, $4)',[CostumerName, phone, cpf, birthday]);
+    await connection.query('INSERT INTO customers (name, phone, cpf, birthday) VALUES ($1, $2, $3, $4)',[CustomerName, phone, cpf, birthday]);
     res.sendStatus(201);
 }
 catch{
@@ -273,8 +273,112 @@ app.put("/customers/:id", async (req,res) =>{
 
 //---------------------------------------------------------------------------------------------------------------
 
+//CRUD Aluguéis -------------------------------------------------------------------------------------------------
+
+app.get("/rentals", async (req,res) =>{
+
+    try{
+        const rentals= await connection.query(`
+        SELECT rentals.* ,customers.name AS "customerName", 
+        games.name AS "gameName", games."categoryId",
+        categories.name AS "categoryName"
+        FROM rentals 
+        JOIN customers ON customers.id = rentals."customerId" 
+        JOIN games ON rentals."gameId" = games.id 
+        JOIN categories ON games."categoryId" = categories.id 
+        
+        `);
+
+        const rentalsInfo = rentals.rows.map((i) => {
+            return {
+              id: i.id,
+              customerId: i.customerId,
+              gameId: i.gameId,
+              rentDate: i.rentDate,
+              daysRented: i.daysRented,
+              returnDate: i.returnDate,
+              originalPrice: i.originalPrice,
+              delayFee: i.delayFee,
+              customer: {
+                id: i.customerId,
+                name: i.customerName,
+              },
+              game: {
+                id: i.gameId,
+                name: i.gameName,
+                categoryId: i.categoryId,
+                categoryName: i.categoryName,
+              },
+            };
+          });
+        
+        res.send(rentalsInfo);
+
+
+     
+    }
+    catch (e) {
+        console.log(e);
+        res.sendStatus(400);
+      }
+});
+
+
+
+
+
+app.post("/rentals", async (req,res) =>{
+const{customerId, gameId, daysRented} = req.body;
+
+const userSchema = joi.object({
+    customerId: joi.number().required(),
+    gameId: joi.number().required(),
+    daysRented:joi.number().min(1).required()
+});
+const { error, value } = userSchema.validate({
+    customerId: customerId, 
+    gameId: gameId, 
+    daysRented: daysRented
+});
+
+if(error){
+    res.sendStatus(400);
+    return;
+}
+
+try{
+    const CustomerValidation = await connection.query('SELECT * FROM customers WHERE id = $1',[customerId]);
+    if(CustomerValidation.rows.length===0){
+        res.sendStatus(400);
+        return;
+    }
+
+    const GameValidation = await connection.query('SELECT * FROM games WHERE id = $1',[gameId]);
+    if(GameValidation.rows[0].id===0||GameValidation.rows[0].stockTotal < 1){
+        res.sendStatus(400);
+        return;
+    }
+
+    let originalPrice = daysRented* GameValidation.rows[0].pricePerDay;
+    const rentDate = dayjs().format('YYYY-MM-DD');
+    let returnDate= null;
+    let delayFee = null;
+    await connection.query('INSERT INTO rentals ("customerId", "gameId", "rentDate", "daysRented", "returnDate", "originalPrice", "delayFee") VALUES ($1, $2, $3, $4, $5, $6, $7)',[customerId, gameId, rentDate, daysRented, returnDate, originalPrice, delayFee]);
+    res.sendStatus(201);
+}
+catch(e){
+    console.log(e);
+    res.sendStatus(400);
+}
+
+
+});
+
+
+//---------------------------------------------------------------------------------------------------------------
 
 
 app.listen(4000, () =>{
     console.log("Rodando servidor");
 });
+
