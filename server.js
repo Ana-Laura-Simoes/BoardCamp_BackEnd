@@ -507,6 +507,38 @@ res.sendStatus(400);
 });
 
 
+
+app.delete("/rentals/:id", async (req,res) =>{
+    const {id}=req.params;    
+    console.log(id);
+    const userSchema = joi.object({
+        id: joi.string().required().alphanum()
+    });
+    const { error, value } = userSchema.validate({
+       id:id
+    });
+    
+    if(error){
+        res.sendStatus(400);
+        return;
+    }
+
+    try{
+        const rentalValidation= await connection.query('SELECT * FROM rentals WHERE id = $1',[id]);
+        if(rentalValidation.rows.length===0) return res.sendStatus(404);
+        if (rentalValidation.rows[0].returnDate !== null) return res.sendStatus(400);
+
+        await connection.query("DELETE FROM rentals WHERE id=$1", [id]);
+        return res.sendStatus(200);
+    }
+    catch(e){
+        //console.log(e);
+        return res.sendStatus(500);
+    }
+
+});
+
+
 //---------------------------------------------------------------------------------------------------------------
 
 
