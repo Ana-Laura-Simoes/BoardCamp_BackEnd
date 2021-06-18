@@ -65,6 +65,20 @@ app.post("/categories", async (req,res) => {
 app.get("/games", async (req,res)=>{
     const {name}=req.query;
     let FilteredGames="";
+    
+    if(name){
+        const userSchema = joi.object({
+            name: joi.string().min(1).required()
+        });
+    
+        const { error, value } = userSchema.validate({
+            name: name
+        });
+    
+        if(error){
+            return res.sendStatus(400);
+        }
+    }
 
     name?FilteredGames= name[0].toUpperCase()+name.substr(1):"";
 
@@ -92,7 +106,7 @@ app.post("/games", async (req,res)=>{
     const { name, image, stockTotal, categoryId, pricePerDay} = req.body;
 
     const userSchema = joi.object({
-        name: joi.string().min(1).required().pattern(/[a-zA-Z]/),
+        name: joi.string().min(1).required(),
         stockTotal: joi.number().min(1).required(),
         pricePerDay:joi.number().min(1).required(),
         categoryId: joi.number().min(1).required(),
@@ -112,25 +126,18 @@ app.post("/games", async (req,res)=>{
     try{
         const GameName=name[0].toUpperCase()+name.substr(1);        
         const Namevalidation = await connection.query('SELECT * FROM games WHERE name = $1',[GameName]);
-        if(Namevalidation.rows.length!==0){
-            res.sendStatus(409);
-            return;
-        }
-        
+        if(Namevalidation.rows.length!==0) return res.sendStatus(409);
+            
         const CategoryValidation = await connection.query('SELECT * FROM categories WHERE id = $1',[categoryId]);
-        if(CategoryValidation.rows.length===0){
-            res.sendStatus(400);
-            return;
-        }
-       
+        if(CategoryValidation.rows.length===0) return res.sendStatus(400);
+        
         await connection.query('INSERT INTO games (name, image, "stockTotal", "categoryId", "pricePerDay") VALUES ($1, $2, $3, $4, $5)',[GameName, image, stockTotal, categoryId, pricePerDay]);
-        res.sendStatus(201);
+        return res.sendStatus(201);
 
     }
     catch{
-        res.sendStatus(500);
+        return res.sendStatus(500);
     }
-    
 });
 
 //---------------------------------------------------------------------------------------------------------------
@@ -139,47 +146,89 @@ app.post("/games", async (req,res)=>{
 //CRUD Clientes -------------------------------------------------------------------------------------------------
 
 app.get("/customers", async(req,res) =>{
+    const {cpf}=req.query;
+    let FilteredCustomers="";
+
+    if(cpf){
+        const userSchema = joi.object({
+            cpf:joi.string().min(1).alphanum().required()
+        });
+    
+        const { error, value } = userSchema.validate({
+            cpf: cpf
+        });
+    
+        if(error){
+            return res.sendStatus(400);
+        }
+    }
+    
+   
 
     try{
-        const customers = await connection.query('SELECT * FROM customers');
+        let customers=[];
+        console.log(cpf);
+        cpf ? FilteredCustomers=`${FilteredCustomers}%` :FilteredCustomers = "%"; 
+
+        if(cpf){
+        customers = await connection.query('SELECT * FROM customers WHERE cpf LIKE $1', [cpf+"%"]);
+            
+        }
+        else{
+        customers = await connection.query('SELECT * FROM customers');
+        }
+        
+        if (customers.rows.length===0) return res.sendStatus(404);
+
         customers.rows.map(e => {
             e.birthday = dayjs(e.birthday).format('YYYY-MM-DD');
         });
-        res.send(customers.rows);
-        }
+        return res.send(customers.rows);
+    }
     catch{
-        res.sendStatus(400);
+        return res.sendStatus(500);
     }
 });
 
 app.get("/customers/:id", async (req,res)=>{
 
-    const id = parseInt(req.params.id); 
+    const id = req.params.id; 
+    const userSchema = joi.object({
+        id:joi.string().min(1).alphanum().required()
+    });
 
+    const { error, value } = userSchema.validate({
+        id: id
+    });
+
+    if(error){
+        return res.sendStatus(400);
+    }
     
     try{
+        
     const customer= await connection.query('SELECT * FROM customers WHERE id = $1', [id]);
     if(customer.rows.length===0) res.sendStatus(404);
 
     customer.rows.map(e => {
         e.birthday = dayjs(e.birthday).format('YYYY-MM-DD');
     });
-    res.send(customer.rows);
+    return res.send(customer.rows);
     }
     catch{
-        res.sendStatus(400)
+        return res.sendStatus(500)
     }
-})
+});
 
 
 app.post("/customers", async (req,res)=>{
 const {name, phone, cpf, birthday } =req.body;
-console.log(birthday);
+
 
 const userSchema = joi.object({
     name: joi.string().min(1).required().pattern(/[a-zA-Z]/),
-    phone: joi.string().min(10).max(11).required().pattern(/[0-9]/),
-    cpf:joi.string().length(11).required().pattern(/[0-9]/),
+    phone: joi.string().min(10).max(11).required().alphanum(),
+    cpf:joi.string().length(11).required().alphanum(),
     birthday: joi.date().less('now'),  
 });
 const { error, value } = userSchema.validate({
@@ -189,41 +238,34 @@ const { error, value } = userSchema.validate({
     birthday: birthday
 });
 
-const birthdayValidation = dayjs(birthday, 'YYYY-MM-DD').isValid();
-
 if(error){
-    res.sendStatus(400);
-    return;
+  return res.sendStatus(400);
 }
 
 try{
-    
     const CpfValidation = await connection.query('SELECT * FROM customers WHERE cpf = $1',[cpf]);
     
-    if(CpfValidation.rows.length!==0){
-        res.sendStatus(409);
-        return;
-    }
+    if(CpfValidation.rows.length!==0) return res.sendStatus(409);
     
     const CustomerName=name[0].toUpperCase()+ name.substr(1);
-    console.log(birthday);
+
     await connection.query('INSERT INTO customers (name, phone, cpf, birthday) VALUES ($1, $2, $3, $4)',[CustomerName, phone, cpf, birthday]);
-    res.sendStatus(201);
+   return res.sendStatus(201);
 }
 catch{
-res.sendStatus(400);
+return res.sendStatus(500);
 }
 });
 
 
 app.put("/customers/:id", async (req,res) =>{
     const {name, phone, cpf, birthday } =req.body;
-    const id = parseInt(req.params.id); 
+    const id = req.params.id; 
 
     const userSchema = joi.object({
         name: joi.string().min(1).required().pattern(/[a-zA-Z]/),
-        phone: joi.string().min(10).max(11).required().pattern(/[0-9]/),
-        cpf:joi.string().length(11).required().pattern(/[0-9]/),
+        phone: joi.string().min(10).max(11).required().alphanum(),
+        cpf:joi.string().length(11).required().alphanum(),
         birthday: joi.date().less('now'),  
     });
     const { error, value } = userSchema.validate({
@@ -234,23 +276,21 @@ app.put("/customers/:id", async (req,res) =>{
     });
     
     if(error){
-        res.sendStatus(400);
-        return;
+      return res.sendStatus(400);
     }
 
     try{
     const CpfValidation = await connection.query('SELECT * FROM customers WHERE cpf = $1 AND id <> $2',[cpf,id]);
     if(CpfValidation.rows.length!==0){
-        res.sendStatus(409);
-        return;
+        return res.sendStatus(409);
+        
     }
     const CustomerName=name[0].toUpperCase()+name.substr(1);
     await connection.query('UPDATE customers SET name=$1, phone=$2, cpf=$3, birthday=$4 WHERE id=$5',[CustomerName, phone, cpf, birthday, id]);
-    res.sendStatus(200);
+    return res.sendStatus(200);
     }
     catch{
-        res.sendStatus(400);
-        return;
+        return res.sendStatus(500);
     }
 
 
@@ -269,10 +309,7 @@ app.get("/rentals", async (req,res) =>{
     let queryString = "";
     let queryArguments = [];
     let id = "";
-    
-    
 
-  
         if(customerId&&gameId){
             console.log(customerId +" " + gameId);
             const userSchema = joi.object({
@@ -376,14 +413,10 @@ app.get("/rentals", async (req,res) =>{
 
      
     }
-    catch (e) {
-        console.log(e);
-        res.sendStatus(400);
+    catch {
+        res.sendStatus(500);
       }
 });
-
-
-
 
 
 app.post("/rentals", async (req,res) =>{
@@ -401,48 +434,41 @@ const { error, value } = userSchema.validate({
 });
 
 if(error){
-    res.sendStatus(400);
-    return;
+    return res.sendStatus(400);
 }
 
 try{
     const CustomerValidation = await connection.query('SELECT * FROM customers WHERE id = $1',[customerId]);
     if(CustomerValidation.rows.length===0){
-        res.sendStatus(400);
-        return;
+       return res.sendStatus(400);
     }
 
     const GameValidation = await connection.query('SELECT * FROM games WHERE id = $1',[gameId]);
     if(GameValidation.rows[0].id===0||GameValidation.rows[0].stockTotal < 1){
-        res.sendStatus(400);
-        return;
+      return  res.sendStatus(400);
     }
+
+    await connection.query(
+        `UPDATE games SET "stockTotal" = "stockTotal" -1 WHERE id = $1`,
+        [gameId]
+      );
 
     let originalPrice = daysRented* GameValidation.rows[0].pricePerDay;
     const rentDate = dayjs().format('YYYY-MM-DD');
     let returnDate= null;
     let delayFee = null;
     await connection.query('INSERT INTO rentals ("customerId", "gameId", "rentDate", "daysRented", "returnDate", "originalPrice", "delayFee") VALUES ($1, $2, $3, $4, $5, $6, $7)',[customerId, gameId, rentDate, daysRented, returnDate, originalPrice, delayFee]);
-    res.sendStatus(201);
-
-    await connection.query(
-        `UPDATE games SET "stockTotal" = "stockTotal" + 1 WHERE id = $1`,
-        [gameId]
-      );
+    return res.sendStatus(201);
 }
-catch(e){
-    console.log(e);
-    res.sendStatus(400);
+catch{
+    return res.sendStatus(500);
 }
-
-
 });
 
 
 
 app.post("/rentals/:id/return", async(req,res)=>{
 const {id}=req.params;    
-
 
 const userSchema = joi.object({
     id: joi.string().required()
@@ -452,8 +478,7 @@ const { error, value } = userSchema.validate({
 });
 
 if(error){
-    res.sendStatus(400);
-    return;
+  return res.sendStatus(400);
 }
 
 try{
@@ -488,9 +513,8 @@ try{
       res.sendStatus(200);
 }
 
-catch(e){
-console.log(e);
-res.sendStatus(400);
+catch{
+res.sendStatus(500);
 }
 });
 
